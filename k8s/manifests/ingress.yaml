@@ -6,9 +6,9 @@ metadata:
   labels:
     app: voting-app
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    # Removing nginx-specific rewrite annotation so Traefik can handle routing.
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   rules:
   - host: porous-jax-reprehensible.ngrok-free.dev
     http:
