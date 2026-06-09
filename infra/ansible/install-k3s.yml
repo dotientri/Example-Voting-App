@@ -1,0 +1,162 @@
+---
+- name: Install K3s control plane
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    k3s_install_script: /tmp/install-k3s.sh
+  tasks:
+    - name: Detect control-plane IP
+      ansible.builtin.command: hostname -I
+      register: control_plane_ips
+      changed_when: false
+
+    - name: Store control-plane IP
+      ansible.builtin.set_fact:
+        control_plane_ip: "{{ control_plane_ips.stdout.split()[0] }}"
+
+    - name: Download K3s install script
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: "{{ k3s_install_script }}"
+        mode: "0755"
+
+    - name: Install K3s server
+      ansible.builtin.command: "{{ k3s_install_script }}"
+      environment:
+        INSTALL_K3S_EXEC: >-
+          server
+          --write-kubeconfig-mode 0644
+          --node-ip {{ control_plane_ip }}
+          --tls-san {{ control_plane_ip }}
+      args:
+        creates: /etc/systemd/system/k3s.service
+
+    - name: Ensure K3s server is running
+      ansible.builtin.systemd:
+        name: k3s
+        enabled: true
+        state: started
+
+    - name: Wait for Kubernetes API
+      ansible.builtin.wait_for:
+        host: "{{ control_plane_ip }}"
+        port: 6443
+        timeout: 120
+
+    - name: Wait for K3s node token
+      ansible.builtin.wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        timeout: 120
+
+    - name: Read K3s node token
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_node_token
+
+    - name: Read K3s kubeconfig
+      ansible.builtin.slurp:
+        src: /etc/rancher/k3s/k3s.yaml
+      register: k3s_kubeconfig
+
+    - name: Store K3s connection facts
+      ansible.builtin.set_fact:
+        k3s_url: "https://{{ control_plane_ip }}:6443"
+        k3s_token: "{{ k3s_node_token.content | b64decode | trim }}"
+        kubeconfig_content: >-
+          {{
+            (k3s_kubeconfig.content | b64decode)
+            | replace('https://127.0.0.1:6443', 'https://' ~ control_plane_ip ~ ':6443')
+            | replace('https://localhost:6443', 'https://' ~ control_plane_ip ~ ':6443')
+          }}
+
+    - name: Create local kubeconfig directory
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/.kube"
+        state: directory
+        mode: "0700"
+      become: false
+
+    - name: Write local kubeconfig
+      ansible.builtin.copy:
+        content: "{{ kubeconfig_content }}"
+        dest: "{{ lookup('env', 'HOME') }}/.kube/config"
+        mode: "0600"
+      become: false
+
+- name: Install K3s agents and join control plane
+  hosts: workers
+  become: true
+  vars:
+    k3s_install_script: /tmp/install-k3s.sh
+    kubeconfig_user: "{{ ansible_user | default('ubuntu') }}"
+    control_plane_host: localhost
+  tasks:
+    - name: Download K3s install script
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: "{{ k3s_install_script }}"
+        mode: "0755"
+
+    - name: Install K3s agent
+      ansible.builtin.command: "{{ k3s_install_script }}"
+      environment:
+        K3S_URL: "{{ hostvars[control_plane_host].k3s_url }}"
+        K3S_TOKEN: "{{ hostvars[control_plane_host].k3s_token }}"
+      args:
+        creates: /etc/systemd/system/k3s-agent.service
+
+    - name: Ensure K3s agent environment is correct
+      ansible.builtin.copy:
+        content: |
+          K3S_URL='{{ hostvars[control_plane_host].k3s_url }}'
+          K3S_TOKEN='{{ hostvars[control_plane_host].k3s_token }}'
+        dest: /etc/systemd/system/k3s-agent.service.env
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      notify: Restart k3s agent
+
+    - name: Ensure K3s agent is running
+      ansible.builtin.systemd:
+        name: k3s-agent
+        enabled: true
+        state: started
+
+    - name: Create worker kubeconfig directory
+      ansible.builtin.file:
+        path: "/home/{{ kubeconfig_user }}/.kube"
+        state: directory
+        owner: "{{ kubeconfig_user }}"
+        group: "{{ kubeconfig_user }}"
+        mode: "0700"
+
+    - name: Write worker kubeconfig
+      ansible.builtin.copy:
+        content: "{{ hostvars[control_plane_host].kubeconfig_content }}"
+        dest: "/home/{{ kubeconfig_user }}/.kube/config"
+        owner: "{{ kubeconfig_user }}"
+        group: "{{ kubeconfig_user }}"
+        mode: "0600"
+
+  handlers:
+    - name: Restart k3s agent
+      ansible.builtin.systemd:
+        name: k3s-agent
+        daemon_reload: true
+        state: restarted
+
+- name: Verify cluster
+  hosts: localhost
+  connection: local
+  become: false
+  tasks:
+    - name: Show cluster nodes
+      ansible.builtin.command: kubectl get nodes -o wide
+      register: cluster_nodes
+      changed_when: false
+
+    - name: Print cluster nodes
+      ansible.builtin.debug:
+        var: cluster_nodes.stdout_lines
