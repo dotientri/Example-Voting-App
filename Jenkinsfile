@@ -66,16 +66,23 @@ pipeline {
 
     stage('Deploy to Kubernetes') {
       steps {
-        sh '''
-          set -eu
-          kubectl apply -f "$K8S_MANIFEST_DIR/"
-          kubectl -n "$K8S_NAMESPACE" set image deployment/vote vote="$VOTE_IMAGE:$IMAGE_TAG"
-          kubectl -n "$K8S_NAMESPACE" set image deployment/result result="$RESULT_IMAGE:$IMAGE_TAG"
-          kubectl -n "$K8S_NAMESPACE" set image deployment/worker worker="$WORKER_IMAGE:$IMAGE_TAG"
-          kubectl -n "$K8S_NAMESPACE" rollout status deployment/vote --timeout=180s
-          kubectl -n "$K8S_NAMESPACE" rollout status deployment/result --timeout=180s
-          kubectl -n "$K8S_NAMESPACE" rollout status deployment/worker --timeout=180s
-        '''
+        withCredentials([string(credentialsId: 'ngrok-token', variable: 'NGROK_AUTHTOKEN')]) {
+          sh '''
+            set -eu
+            # Tạo namespace trước để có thể tạo Secret an toàn
+            kubectl create namespace "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+            # Lấy token từ Jenkins để tạo K8s Secret
+            kubectl create secret generic ngrok-token-secret --from-literal=token="$NGROK_AUTHTOKEN" -n "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+            
+            kubectl apply -f "$K8S_MANIFEST_DIR/"
+            kubectl -n "$K8S_NAMESPACE" set image deployment/vote vote="$VOTE_IMAGE:$IMAGE_TAG"
+            kubectl -n "$K8S_NAMESPACE" set image deployment/result result="$RESULT_IMAGE:$IMAGE_TAG"
+            kubectl -n "$K8S_NAMESPACE" set image deployment/worker worker="$WORKER_IMAGE:$IMAGE_TAG"
+            kubectl -n "$K8S_NAMESPACE" rollout status deployment/vote --timeout=180s
+            kubectl -n "$K8S_NAMESPACE" rollout status deployment/result --timeout=180s
+            kubectl -n "$K8S_NAMESPACE" rollout status deployment/worker --timeout=180s
+          '''
+        }
       }
     }
   }

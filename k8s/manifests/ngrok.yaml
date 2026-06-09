@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ngrok
+  namespace: voting-app
+  labels:
+    app: ngrok
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ngrok
+  template:
+    metadata:
+      labels:
+        app: ngrok
+    spec:
+      containers:
+      - name: ngrok
+        image: ngrok/ngrok:latest
+        args:
+        - http
+        - "--domain=porous-jax-reprehensible.ngrok-free.dev"
+        - "ingress-nginx-controller.ingress-nginx.svc.cluster.local:80" # Trỏ về Nginx Ingress. (Nếu bạn dùng Traefik mặc định của K3s, hãy đổi thành "traefik.kube-system.svc.cluster.local:80")
+        env:
+        - name: NGROK_AUTHTOKEN
+          valueFrom:
+            secretKeyRef:
+              name: ngrok-token-secret
+              key: token

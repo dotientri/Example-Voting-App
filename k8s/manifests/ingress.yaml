@@ -7,11 +7,10 @@ metadata:
     app: voting-app
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$1
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
 spec:
   ingressClassName: nginx
   rules:
-  - host: tripheo-vote.eastasia.cloudapp.com
+  - host: porous-jax-reprehensible.ngrok-free.dev
     http:
       paths:
       - path: /(.*)
@@ -28,7 +27,3 @@ spec:
             name: result
             port:
               number: 80
-  tls:
-  - hosts:
-    - tripheo-vote.eastasia.cloudapp.azure.com
-    secretName: voting-app-tls
