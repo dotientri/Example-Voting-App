@@ -66,7 +66,10 @@ pipeline {
 
     stage('Deploy to Kubernetes') {
       steps {
-        withCredentials([string(credentialsId: 'ngrok-token', variable: 'NGROK_AUTHTOKEN')]) {
+        withCredentials([
+          string(credentialsId: 'ngrok-token', variable: 'NGROK_AUTHTOKEN'),
+          file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')
+        ]) {
           sh '''
             set -eu
             # Tạo namespace trước để có thể tạo Secret an toàn
