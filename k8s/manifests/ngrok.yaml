@@ -20,7 +20,7 @@ spec:
         image: ngrok/ngrok:latest
         args:
         - http
-        - "--domain=porous-jax-reprehensible.ngrok-free.dev"
+        - "--url=porous-jax-reprehensible.ngrok-free.dev"
         - "traefik.kube-system.svc.cluster.local:80" # Trỏ về Traefik (mặc định của K3s)
         env:
         - name: NGROK_AUTHTOKEN
