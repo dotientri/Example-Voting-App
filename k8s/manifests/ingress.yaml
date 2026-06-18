@@ -1,29 +1,48 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: voting-app-ingress
+  name: voting-app-ingress-vote
   namespace: voting-app
   labels:
     app: voting-app
   annotations:
-    # Removing nginx-specific rewrite annotation so Traefik can handle routing.
+    kubernetes.io/ingress.class: "traefik"
 spec:
   ingressClassName: traefik
   rules:
   - host: porous-jax-reprehensible.ngrok-free.dev
     http:
       paths:
-      - path: /(.*)
+      - path: /
         pathType: Prefix
         backend:
           service:
             name: vote
             port:
               number: 80
-      - path: /result
-        pathType: Prefix
-        backend:
-          service:
-            name: result
-            port:
-              number: 80
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: voting-app-ingress-result
+  namespace: voting-app
+  labels:
+    app: voting-app
+spec:
+  routes:
+  - kind: Rule
+    match: Host(`porous-jax-reprehensible.ngrok-free.dev`) && PathPrefix(`/result`)
+    priority: 1000
+    middlewares:
+    - name: strip-result
+    services:
+    - name: result
+      port: 80
+  - kind: Rule
+    match: Host(`porous-jax-reprehensible.ngrok-free.dev`) && (PathPrefix(`/stylesheets`) || PathPrefix(`/socket.io`) || Path(`/angular.min.js`) || Path(`/app.js`))
+    priority: 1000
+    services:
+    - name: result
+      port: 80
