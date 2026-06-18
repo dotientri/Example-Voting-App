@@ -32,6 +32,22 @@ pipeline {
       }
     }
 
+    stage('Login to Docker Hub') {
+      steps {
+        withCredentials([usernamePassword(
+          credentialsId: 'dockerhub-creds',
+          usernameVariable: 'DOCKERHUB_USER',
+          passwordVariable: 'DOCKERHUB_PASS'
+        )]) {
+          sh '''
+            set -eu
+            docker logout "$DOCKERHUB_REGISTRY" || true
+            echo "$DOCKERHUB_PASS" | docker login "$DOCKERHUB_REGISTRY" -u "$DOCKERHUB_USER" --password-stdin
+          '''
+        }
+      }
+    }
+
     stage('Build images') {
       steps {
         sh '''
@@ -45,22 +61,15 @@ pipeline {
 
     stage('Login and push images') {
       steps {
-        withCredentials([usernamePassword(
-          credentialsId: 'dockerhub-creds',
-          usernameVariable: 'DOCKERHUB_USER',
-          passwordVariable: 'DOCKERHUB_PASS'
-        )]) {
-          sh '''
-            set -eu
-            echo "$DOCKERHUB_PASS" | docker login "$DOCKERHUB_REGISTRY" -u "$DOCKERHUB_USER" --password-stdin
-            docker push "$VOTE_IMAGE:$IMAGE_TAG"
-            docker push "$VOTE_IMAGE:latest"
-            docker push "$RESULT_IMAGE:$IMAGE_TAG"
-            docker push "$RESULT_IMAGE:latest"
-            docker push "$WORKER_IMAGE:$IMAGE_TAG"
-            docker push "$WORKER_IMAGE:latest"
-          '''
-        }
+        sh '''
+          set -eu
+          docker push "$VOTE_IMAGE:$IMAGE_TAG"
+          docker push "$VOTE_IMAGE:latest"
+          docker push "$RESULT_IMAGE:$IMAGE_TAG"
+          docker push "$RESULT_IMAGE:latest"
+          docker push "$WORKER_IMAGE:$IMAGE_TAG"
+          docker push "$WORKER_IMAGE:latest"
+        '''
       }
     }
 
