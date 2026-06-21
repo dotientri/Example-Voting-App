@@ -40,9 +40,15 @@ spec:
     services:
     - name: result
       port: 80
+      sticky:
+        cookie:
+          name: sticky_result
   - kind: Rule
     match: Host(`porous-jax-reprehensible.ngrok-free.dev`) && (PathPrefix(`/stylesheets`) || PathPrefix(`/socket.io`) || Path(`/angular.min.js`) || Path(`/app.js`))
     priority: 1000
     services:
     - name: result
       port: 80
+      sticky:
+        cookie:
+          name: sticky_result
