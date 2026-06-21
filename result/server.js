@@ -1,7 +1,17 @@
+const client = require('prom-client');
+const winston = require('winston');
+// Tự động thu thập các thông số mặc định của Node.js (CPU, RAM, Event Loop)
+client.collectDefaultMetrics();
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [new winston.transports.Console()],
+});
 var express = require('express'),
     async = require('async'),
     { Pool } = require('pg'),
     cookieParser = require('cookie-parser'),
+    path = require('path'), // Đã thêm: Import module path để tránh crash ứng dụng khi chạy hàm res.sendFile
     app = express(),
     server = require('http').Server(app),
     io = require('socket.io')(server);
@@ -67,11 +77,21 @@ app.use(cookieParser());
 app.use(express.urlencoded());
 app.use(express.static(__dirname + '/views'));
 
+// --- ĐÃ THÊM: Endpoint phục vụ cho Prometheus cào dữ liệu hiệu năng tự động ---
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', client.register.contentType);
+    res.end(await client.register.metrics());
+  } catch (err) {
+    res.status(500).end(err);
+  }
+});
+
 app.get('/', function (req, res) {
   res.sendFile(path.resolve(__dirname + '/views/index.html'));
 });
 
 server.listen(port, function () {
   var port = server.address().port;
-  console.log('App running on port ' + port);
+  logger.info({ message: 'App running successfully', port: port }); // <-- Dùng logger thay cho console.log
 });
