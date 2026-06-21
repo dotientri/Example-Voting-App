@@ -1,5 +1,8 @@
 from flask import Flask, render_template, request, make_response, g
 from redis import Redis
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+import logging
+from pythonjsonlogger import jsonlogger
 import os
 import socket
 import random
@@ -20,6 +23,16 @@ def get_redis():
     if not hasattr(g, 'redis'):
         g.redis = Redis(host="redis", db=0, socket_timeout=5)
     return g.redis
+# Cài đặt để log in ra dạng JSON
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logHandler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(message)s')
+logHandler.setFormatter(formatter)
+logger.addHandler(logHandler)
+@app.route("/metrics")
+def metrics():
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
 
 @app.route("/", methods=['POST','GET'])
 def hello():

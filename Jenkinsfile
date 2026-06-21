@@ -5,13 +5,10 @@ pipeline {
     timestamps()
     disableConcurrentBuilds()
   }
-
   environment {
     DOCKERHUB_REGISTRY = 'docker.io'
-
     K8S_NAMESPACE = 'voting-app'
     K8S_MANIFEST_DIR = 'k8s/manifests'
-
     VOTE_IMAGE = 'hiiamgay/vote'
     RESULT_IMAGE = 'hiiamgay/result'
     WORKER_IMAGE = 'hiiamgay/worker'

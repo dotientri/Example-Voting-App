@@ -40,6 +40,10 @@ kind: Service
 metadata:
   name: result
   namespace: voting-app
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "80"  # Cổng container đang chạy ứng dụng
+    prometheus.io/path: "/metrics"
   labels:
     app: result
 spec:
